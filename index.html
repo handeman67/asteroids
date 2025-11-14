@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroids Game</title>
+    <link rel="stylesheet" href="main.css">
+
+    <script language="javascript">
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+
+        // Force fullscreen on all screens
+        function enterFullscreen() {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen();
+            } else if (document.documentElement.msRequestFullscreen) {
+                document.documentElement.msRequestFullscreen();
+            }
+        }
+
+        // Enter fullscreen on page load
+        window.addEventListener('load', function() {
+            enterFullscreen();
+        });
+    </script>
+
+
+</head>
+
+<body>
+    
+    <div class="container grid" id="wrapper" name="wrap">
+    <div class="header" id="topheader" name="top"></div>
+    <div class="navigation" id="navwindow" name="navcontainer"></div>
+    <div class="logo" id="logo" name="companyLogo"></div>
+    <div class="search" id="search" name="sitesearch"></div>
+    <div class="navbar" id="navbuttons" name="navbar"></div>
+    <div class="section asteroid" id="agame" name="agame"></div>
+    <div class="footer" id="" name=""></div>
+ <div id="start-screen"class="">
+        <h1 style="font-size: 48px; margin: 0 auto; text-align: center;">Asteroids</h1>
+        <button id="start-button" >Click to Start</button>
+        <p style="font-size: 16px; text-align: center;">Use arrow keys to move, spacebar to shoot</p>
+     </div>
+    <div class="result"></div>
+</div>
+    <!-- Test Modal Overlay -->
+    <!-- <div id="test-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; overflow-y: auto;">
+        <div style="position: relative; max-width: 1400px; margin: 50px auto; background: #000; border: 2px solid #fff; padding: 20px; border-radius: 10px;">
+            <button id="close-test-modal" style="position: absolute; top: 10px; right: 10px; background: #f00; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-size: 16px;">Close</button>
+            <h1 style="color: white; text-align: center;">Asteroids Game Unit Tests</h1>
+            <button id="run-tests-modal" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-bottom: 20px;">Run Tests</button>
+            <div id="test-modal-content" style="display: flex; height: 600px;">
+                <div id="test-results-modal" contenteditable="true" style="flex: 1; color: white; overflow-y: auto; border-right: 1px solid #333; padding: 20px;"></div>
+                <div id="test-code-modal" style="flex: 1; color: white; overflow-y: auto; padding-left: 20px; background: #111; border-radius: 5px; padding: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="color: white; margin: 0;">Code View</h3>
+                        <button id="copy-code-btn" style="background: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;">Copy</button>
+                    </div>
+                    <div id="test-code-display" contenteditable="true" style="font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; background: #000; padding: 10px; border-radius: 5px; border: 1px solid #333; min-height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+    </div> -->
+
+    <!-- Load scripts at end of body to prevent render blocking -->
+      <script language="javascript" src="./libraries/p5.min.js"></script>
+    <script language="javascript" src="./libraries/p5.dom.min.js"></script>
+    <script language="javascript" src="./libraries/p5.sound.min.js"></script>
+    <!-- <script language="javascript" src="./test-runner.js"></script> -->
+    <script language="javascript" src="./index.js"></script>
+    <!-- <script language="javascript" src="./run-tests.js"></script> -->
+
+    <!-- <script>
+        // Test modal functionality
+        let testRunner = new TestRunner();
+
+        function showTestModal() {
+            document.getElementById('test-modal').style.display = 'block';
+            // Load existing results if available
+            const existingResults = testRunner.loadResults();
+            if (existingResults) {
+                testRunner.render(document.getElementById('test-results-modal'));
+            }
+        }
+
+        function hideTestModal() {
+            document.getElementById('test-modal').style.display = 'none';
+        }
+
+        function runTestsInModal() {
+            const btn = document.getElementById('run-tests-modal');
+            const resultsDiv = document.getElementById('test-results-modal');
+
+            btn.disabled = true;
+            btn.textContent = 'Running Tests...';
+            resultsDiv.innerHTML = '<p style="color: yellow;">Executing tests...</p>';
+
+            setTimeout(() => {
+                try {
+                    const testData = window.runAllTests();
+                    testRunner.testData = testData;
+                    testRunner.render(resultsDiv);
+                    btn.textContent = 'Run Tests Again';
+                } catch (error) {
+                    console.error('Test execution failed:', error);
+                    resultsDiv.innerHTML = `<p style="color: red;">Test execution failed: ${error.message}</p>`;
+                    btn.textContent = 'Run Tests';
+                }
+                btn.disabled = false;
+            }, 100);
+        }
+
+        // Copy code functionality
+        function copyCodeToClipboard() {
+            const codeDiv = document.getElementById('test-code-display');
+            const text = codeDiv.textContent || codeDiv.innerText;
+
+            navigator.clipboard.writeText(text).then(function() {
+                const btn = document.getElementById('copy-code-btn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.backgroundColor = '#28a745';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.backgroundColor = '#007bff';
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Failed to copy: ', err);
+                const btn = document.getElementById('copy-code-btn');
+                btn.textContent = 'Failed';
+                btn.style.backgroundColor = '#dc3545';
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.style.backgroundColor = '#007bff';
+                }, 2000);
+            });
+        }
+
+        // Add event listeners when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('close-test-modal').addEventListener('click', hideTestModal);
+            document.getElementById('run-tests-modal').addEventListener('click', runTestsInModal);
+            document.getElementById('copy-code-btn').addEventListener('click', copyCodeToClipboard);
+
+            // Make showTestModal available globally for the Tests button
+            window.showTestModal = showTestModal;
+
+            // Add hover effect to start button
+            const startButton = document.getElementById('start-button');
+            if (startButton) {
+                startButton.addEventListener('mouseover', function() {
+                    startButton.style.backgroundColor = '#0056b3';
+                });
+                startButton.addEventListener('mouseout', function() {
+                    startButton.style.backgroundColor = '#007bff';
+                });
+            }
+        });
+    </script> -->
+</body>
+
+</html>

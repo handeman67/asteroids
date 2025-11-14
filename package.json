@@ -1,0 +1,18 @@
+{
+  "name": "asteroids-cleaning",
+  "version": "1.0.0",
+  "description": "base asteroid version ",
+  "main": "index.html",
+  "path":"./asteroids-cleaning",
+  "scripts": {
+    "test": "jest --coverage"
+  },
+  "author": "handeman67",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "p5js": "^1.2.18"
+  }
+}
