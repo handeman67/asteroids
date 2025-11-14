@@ -428,10 +428,6 @@ class Asteroid extends GameObject {
 
   update() {
     this.pos.add(this.vel);
-    if (this.contact == true) {
-      // console.log("its been hit");
-      // G.asteroids.splice(0, 1);
-    }
     // Decrement immunity timer
     if (this.immunityTimer > 0) this.immunityTimer--;
   }
@@ -495,14 +491,6 @@ class Asteroid extends GameObject {
     }
 
 
-
-    // Display damage count for testing (only for damaged asteroids and not too many)
-    // if (t.damg > 0 && G.asteroids.length < 15) {
-    //   fill(255);
-    //   textAlign(CENTER, CENTER);
-    //   textSize(12);
-    //   text(t.damg, 0, 0);
-    // }
 
     pop();
   }
@@ -699,9 +687,44 @@ function drawAsteroid() {
       for (let ship of sps) {
         if (ship && !ship.contact) {
           if (ast.hits(ship)) {
-            // Handle ship damage
-            ship.damg += 20;
+            // Apply damage to ship when asteroid hits it
+            ship.applyDamage(20); // Fixed 20 damage per asteroid collision
             ship.contact = true;
+          }
+        }
+      }
+    }
+
+    // Check ship-to-ship collisions (player vs enemy) - MAXIMUM DAMAGE SCENARIO
+    if (sps && sps.length > 1) {
+      let playerShip = sps.find(s => !s.isEnemy);
+      if (playerShip) {
+        for (let enemyShip of sps) {
+          if (enemyShip.isEnemy && !enemyShip.contact && !playerShip.contact) {
+            let d = dist(playerShip.pos.x, playerShip.pos.y, enemyShip.pos.x, enemyShip.pos.y);
+            if (d < playerShip.r + enemyShip.r) {
+              // Ship-to-ship collision detected - INSTANT DESTRUCTION
+              // Apply maximum damage to both ships (instant destruction)
+              playerShip.applyDamage(playerShip.maxDamage); // Destroy player
+              enemyShip.applyDamage(enemyShip.maxDamage);   // Destroy enemy
+              
+              // Apply collision physics - bounce off each other
+              let collisionNormal = p5.Vector.sub(playerShip.pos, enemyShip.pos).normalize();
+              let relativeVel = p5.Vector.sub(playerShip.vel, enemyShip.vel);
+              let impulse = relativeVel.dot(collisionNormal);
+              
+              playerShip.vel.add(p5.Vector.mult(collisionNormal, impulse * 0.5));
+              enemyShip.vel.sub(p5.Vector.mult(collisionNormal, impulse * 0.5));
+              
+              // Separate ships to prevent overlap
+              let overlap = (playerShip.r + enemyShip.r) - d;
+              let separation = p5.Vector.mult(collisionNormal, overlap / 2);
+              playerShip.pos.add(separation);
+              enemyShip.pos.sub(separation);
+              
+              playerShip.contact = true;
+              enemyShip.contact = true;
+            }
           }
         }
       }
@@ -787,7 +810,7 @@ function preload() {
     G.ss = loadSound("sound/saucerSmall.wav");
     G.bs = loadSound("sound/saucerBig.wav");
     G.thruster = loadSound("sound/thrust.wav");
-    G.bkg = loadImage("IMG/stars.jpg");
+    G.bkg = loadImage("IMG/stars1.png"); // Changed from stars.jpg to stars1.png
     G.shipimg = [loadImage("IMG/mship1.png")];
   } catch (error) {
     console.error("Error loading game assets:", error);
@@ -996,9 +1019,6 @@ class resetGame {
 
 
 function moving() {
-  // console.log("G,window",G,window);
-  // G.ship[0].setRotation();
-  // G.ship[0].Moves = false;
   // Removed continuous acceleration - now handled by keyPressed() for single bursts
   return G;
 };
@@ -1007,10 +1027,12 @@ function turning() {
   // Find player ship
   let playerShip = G.ship.find(s => !s.isEnemy);
   if (playerShip) {
-    if (keyIsDown(37)) {
+    // Left arrow or A key
+    if (keyIsDown(37) || keyIsDown(65)) {
       playerShip.heading += -0.06;
     }
-    if (keyIsDown(39)) {
+    // Right arrow or D key
+    if (keyIsDown(39) || keyIsDown(68)) {
       playerShip.heading += 0.06;
     }
   }
@@ -1024,19 +1046,17 @@ const hcenter = innerHeight / 2;
 let game_over = false;
 
 /**
- * Display text on game over screen
+ * Display text on game over screen - centered
  * @param {string} tx1 - First text component
  * @param {string|number} tx2 - Second text component
- * @param {number} x - X offset from center
- * @param {number} y - Y offset from center
+ * @param {number} yOffset - Y offset from center
  */
-function setText(tx1, tx2, x, y) {
+function setText(tx1, tx2, yOffset) {
+  textAlign(CENTER, CENTER);
   return text(
-    `${tx1}:${tx2}`,
-    width / 2 - x * gameScale,
-    height / 2 + y * gameScale,
-    200,
-    200
+    `${tx1}: ${tx2}`,
+    width / 2,
+    height / 2 + yOffset * gameScale
   );
 }
 
@@ -1047,40 +1067,49 @@ function gameOver() {
   game_over = true;
 
   push();
-  stroke(0);
-  fill(255);
-  textSize(20 * gameScale);
-  let t;
-  G.allTime[0] > G.score ? t = G.allTime[0] : t = G.score;
-
-  setText('High Score',t,200,0);
-  setText('Your Score',G.score,200,25);
-  setText('All Time Highs',"",70,50);
-
-  setText('#1 Player',G.allTime[0],150,70);
-  setText('#2 Player',G.allTime[1],150,90);
-  setText('#3 Player',G.allTime[2],150,110);
-  setText('#4 Player',G.allTime[3],150,130);
-  setText('#5 Player',G.allTime[4],150,150);
-  pop();
-
-  push();
+  // Draw border rectangle
   rectMode(CENTER);
   stroke(255, 200);
   strokeWeight(4 * gameScale);
   noFill();
-
-  rect(width / 2, height / 2, width * 0.8, height * 0.8, 50 * gameScale, 50 * gameScale, 50 * gameScale, 50 * gameScale);
-
+  rect(width / 2, height / 2, width * 0.8, height * 0.8, 50 * gameScale);
   pop();
 
   push();
+  // Game Over title
+  textAlign(CENTER, CENTER);
   stroke(random(100, 255), 0, 0, random(100, 255));
   strokeWeight(4 * gameScale);
-  noFill();
+  fill(255, 0, 0);
   textSize(60 * gameScale);
-  translate(width / 2 - 150 * gameScale, height / 2 - 200 * gameScale);
-  text("GameOver", 0, 0, 0, 100);
+  text("GAME OVER", width / 2, height / 2 - 200 * gameScale);
+  pop();
+
+  push();
+  // Scores - all centered
+  textAlign(CENTER, CENTER);
+  stroke(0);
+  fill(255);
+  textSize(20 * gameScale);
+  
+  let t;
+  G.allTime[0] > G.score ? t = G.allTime[0] : t = G.score;
+
+  text(`High Score: ${t}`, width / 2, height / 2 - 100 * gameScale);
+  text(`Your Score: ${G.score}`, width / 2, height / 2 - 70 * gameScale);
+  
+  textSize(18 * gameScale);
+  text('All Time Highs', width / 2, height / 2 - 30 * gameScale);
+  
+  textSize(16 * gameScale);
+  text(`#1 Player: ${G.allTime[0]}`, width / 2, height / 2 + 10 * gameScale);
+  text(`#2 Player: ${G.allTime[1]}`, width / 2, height / 2 + 35 * gameScale);
+  text(`#3 Player: ${G.allTime[2]}`, width / 2, height / 2 + 60 * gameScale);
+  text(`#4 Player: ${G.allTime[3]}`, width / 2, height / 2 + 85 * gameScale);
+  text(`#5 Player: ${G.allTime[4]}`, width / 2, height / 2 + 110 * gameScale);
+  
+  textSize(14 * gameScale);
+  text('Click to restart', width / 2, height / 2 + 150 * gameScale);
   pop();
 
   G.ship.splice(0,1);
@@ -1166,7 +1195,13 @@ class Ships extends GameObject {
       width / 2;
     let startY = isEnemy ? random(height) : height / 2;
 
-    super(startX, startY, 10); // Call parent constructor
+    // Adjust ship size for mobile devices
+    let shipRadius = 10;
+    if (Joystick.isMobile()) {
+      shipRadius = 7; // Smaller ships on mobile (70% of original size)
+    }
+
+    super(startX, startY, shipRadius); // Call parent constructor
 
     // Ship-specific properties
     this.heading = isEnemy ? (this.pos.x < 0 ? 0 : PI) : 0; // Face toward screen for enemies
@@ -1176,11 +1211,14 @@ class Ships extends GameObject {
     this.isEnemy = isEnemy;         // Whether this is an enemy ship
     this.shipType = shipType;       // Ship type for different appearances/behavior
     this.damageSystem = true;       // Enable damage system like asteroids
-    this.maxDamage = 250;           // Maximum damage before destruction
+    this.maxDamage = 100;           // Maximum damage before destruction (reduced from 250)
 
     // Movement state
     this.isBoosting = false;        // Whether ship is currently thrusting
     this.shieldActive = false;      // Whether shield is currently active
+    this.shieldHealth = 100;        // Shield health (0-100)
+    this.shieldRegenRate = 0.1;     // Shield regeneration per frame when not active
+    this.shieldAbsorption = 0.5;    // Shield damage absorption (0.5 = 50%)
 
     // Visual state
     this.red = 255;                 // Ship color components (damage affects green/blue)
@@ -1234,19 +1272,25 @@ class Ships extends GameObject {
 
     // Ship outline with damage color
     if (!this.isEnemy) {
+      // Configure shield based on level
       if (G.level.length === 1) {
-        // Level 1: Shield always active
+        // Level 1: Shield always active, 50% absorption
         this.shieldActive = true;
-        shipDamage(225);
-        this.Shield();
+        this.shieldAbsorption = 0.5;
       } else if (G.level.length === 2) {
-        // Level 2: Shield only active when holding F or 0
-        shipDamage(225);
-        this.Shield();
-      } else {
-        // Level 3+: No shield
-        shipDamage(25);
+        // Level 2: Shield controlled by F key, 50% absorption
+        this.shieldAbsorption = 0.5;
+      } else if (G.level.length >= 3) {
+        // Level 3+: Shield controlled by F key, 30% absorption
+        this.shieldAbsorption = 0.3;
       }
+      
+      // Draw shield if active and has health
+      if (this.shieldActive && this.shieldHealth > 0) {
+        this.Shield();
+      }
+      
+      shipDamage(225);
     }
     // Use circle as placeholder for enemy ships, image for player
     if (this.isEnemy) {
@@ -1273,8 +1317,8 @@ class Ships extends GameObject {
     if (this.isEnemy) {
       this.updateEnemyAI();
     } else {
-      // Check for continuous acceleration while up arrow is held down
-      if (keyIsDown(UP_ARROW)) {
+      // Check for continuous acceleration while up arrow or W key is held down
+      if (keyIsDown(UP_ARROW) || keyIsDown(87)) {
         this.boost(0.5);
       }
 
@@ -1282,6 +1326,11 @@ class Ships extends GameObject {
       if (this.contact) {
         resolve_contact();
         this.contact = false;
+      }
+      
+      // Regenerate shield when not active
+      if (!this.shieldActive && this.shieldHealth < 100) {
+        this.shieldHealth = Math.min(100, this.shieldHealth + this.shieldRegenRate);
       }
     }
 
@@ -1469,6 +1518,35 @@ class Ships extends GameObject {
   }
 
   /**
+   * Apply damage to ship with configurable shield absorption
+   * @param {number} amount - Amount of damage to apply
+   */
+  applyDamage(amount) {
+    let finalDamage = amount;
+    
+    // Apply shield absorption if shield is active
+    if (this.shieldActive && this.shieldHealth > 0) {
+      let absorbed = amount * this.shieldAbsorption;
+      finalDamage = amount - absorbed;
+      
+      // Deplete shield health
+      this.shieldHealth -= absorbed;
+      if (this.shieldHealth <= 0) {
+        this.shieldHealth = 0;
+        this.shieldActive = false;
+      }
+      
+      console.log(`Shield absorbed ${absorbed.toFixed(1)} damage (${(this.shieldAbsorption * 100)}%). Ship takes ${finalDamage.toFixed(1)}`);
+    }
+    
+    // Apply remaining damage to ship
+    this.damg += finalDamage;
+    this.activateParticlesFromPool();
+    
+    console.log(`Ship damage: ${this.damg.toFixed(1)}/${this.maxDamage}`);
+  }
+
+  /**
    * Check collision with another object
    * @param {Object} inc - Incoming object to check collision with
    * @returns {boolean} - True if collision detected
@@ -1481,8 +1559,7 @@ class Ships extends GameObject {
 
       // Apply damage if this ship has damage system enabled
       if (this.damageSystem) {
-        this.damg += inc.r * 25; // Damage based on object size
-        this.activateParticlesFromPool();
+        this.applyDamage(inc.r * 25); // Use new damage method with shield
       }
 
       return true;
@@ -1541,7 +1618,7 @@ function shipDamage(a) {
   }
   // Find the player ship (first non-enemy ship)
   let playerShip = G.ship.find(s => !s.isEnemy);
-  if (playerShip && playerShip.damg >= a) {
+  if (playerShip && playerShip.damg >= playerShip.maxDamage) {
     // Handle player ship destruction
     playerShip.destroy();
     let playerIndex = G.ship.findIndex(s => !s.isEnemy);
@@ -1591,7 +1668,7 @@ function resolve_contact() {
       // Find player ship and apply damage
       let playerShip = G.ship.find(s => !s.isEnemy);
       if (playerShip) {
-        playerShip.damg += 20;
+        playerShip.applyDamage(20);
 
         // Apply impact force to ship
         let impactDir = p5.Vector.sub(playerShip.pos, a.pos).normalize();
@@ -1768,40 +1845,106 @@ class Controls {
    */
 
   createButtons() {
-    let thiscolor = color(255, 255, 255, 190); // White with transparency
     // Only create buttons if they don't already exist
     if (!this.buttonsCreated) {
-      // Reset game button
-      let resetBtn = createButton("Reset");
-      resetBtn.mousePressed(() => {
-        return new resetGame(true); // true means full reset
-      });
-      resetBtn.size(70, 30);
-      resetBtn.position(20, 20);
+      // Create dropdown menu button
+      let menuBtn = createButton("☰ Menu");
+      menuBtn.size(100, 35);
+      menuBtn.position(20, 20);
+      menuBtn.style('color', 'yellow');
+      menuBtn.style('background', 'rgba(0, 0, 0, 0.8)');
+      menuBtn.style('border', '1px solid #ccc');
+      menuBtn.style('border-radius', '5px');
+      menuBtn.style('font-size', '16px');
+      menuBtn.style('cursor', 'pointer');
+      
+      // Create dropdown container
+      let dropdown = createDiv('');
+      dropdown.id('game-menu-dropdown');
+      dropdown.style('position', 'absolute');
+      dropdown.style('top', '60px');
+      dropdown.style('left', '20px');
+      dropdown.style('background', 'rgba(0, 0, 0, 0.95)');
+      dropdown.style('border', '2px solid #ccc');
+      dropdown.style('border-radius', '5px');
+      dropdown.style('padding', '10px');
+      dropdown.style('display', 'none'); // Hidden by default
+      dropdown.style('z-index', '1000');
+      dropdown.style('min-width', '150px');
+      
+      // Reset button
+      let resetBtn = createButton("🔄 Reset Game");
+      resetBtn.parent(dropdown);
+      resetBtn.style('display', 'block');
+      resetBtn.style('width', '100%');
+      resetBtn.style('margin', '5px 0');
+      resetBtn.style('padding', '10px');
       resetBtn.style('color', 'yellow');
+      resetBtn.style('background', 'rgba(50, 50, 50, 0.8)');
+      resetBtn.style('border', '1px solid #666');
+      resetBtn.style('border-radius', '3px');
+      resetBtn.style('cursor', 'pointer');
+      resetBtn.style('font-size', '14px');
+      resetBtn.mousePressed(() => {
+        new resetGame(true);
+        dropdown.style('display', 'none'); // Close menu after action
+      });
+      resetBtn.mouseOver(() => resetBtn.style('background', 'rgba(80, 80, 80, 0.9)'));
+      resetBtn.mouseOut(() => resetBtn.style('background', 'rgba(50, 50, 50, 0.8)'));
 
-      // Sound toggle button (placeholder)
-      let soundBtn = createButton("🔊");
+      // Pause button
+      let pauseBtn = createButton(isPaused ? "▶️ Resume" : "⏸️ Pause");
+      pauseBtn.parent(dropdown);
+      pauseBtn.style('display', 'block');
+      pauseBtn.style('width', '100%');
+      pauseBtn.style('margin', '5px 0');
+      pauseBtn.style('padding', '10px');
+      pauseBtn.style('color', 'yellow');
+      pauseBtn.style('background', 'rgba(50, 50, 50, 0.8)');
+      pauseBtn.style('border', '1px solid #666');
+      pauseBtn.style('border-radius', '3px');
+      pauseBtn.style('cursor', 'pointer');
+      pauseBtn.style('font-size', '14px');
+      pauseBtn.mousePressed(() => {
+        isPaused = !isPaused;
+        pauseBtn.html(isPaused ? "▶️ Resume" : "⏸️ Pause");
+        dropdown.style('display', 'none'); // Close menu after action
+      });
+      pauseBtn.mouseOver(() => pauseBtn.style('background', 'rgba(80, 80, 80, 0.9)'));
+      pauseBtn.mouseOut(() => pauseBtn.style('background', 'rgba(50, 50, 50, 0.8)'));
 
-      soundBtn.size(70, 30);
-      soundBtn.position(100, 20)
+      // Sound toggle button
+      let soundBtn = createButton(G.soundOn ? "🔊 Sound On" : "🔈 Sound Off");
+      soundBtn.parent(dropdown);
+      soundBtn.style('display', 'block');
+      soundBtn.style('width', '100%');
+      soundBtn.style('margin', '5px 0');
+      soundBtn.style('padding', '10px');
+      soundBtn.style('color', 'yellow');
+      soundBtn.style('background', 'rgba(50, 50, 50, 0.8)');
+      soundBtn.style('border', '1px solid #666');
+      soundBtn.style('border-radius', '3px');
+      soundBtn.style('cursor', 'pointer');
+      soundBtn.style('font-size', '14px');
       soundBtn.mousePressed(() => {
         G.soundOn = !G.soundOn;
-        soundBtn.html(G.soundOn ? "🔊" : "🔈");
-      })
-      // Test page button
-      let testBtn = createButton("Tests");
-       testBtn.position(180, 20);
-       testBtn.style('color', 'yellow');
-      testBtn.mousePressed(() => {
-        if (window.showTestModal) {
-          window.showTestModal();
-        } else {
-          window.open('test.html', '_blank');
+        soundBtn.html(G.soundOn ? "🔊 Sound On" : "🔈 Sound Off");
+      });
+      soundBtn.mouseOver(() => soundBtn.style('background', 'rgba(80, 80, 80, 0.9)'));
+      soundBtn.mouseOut(() => soundBtn.style('background', 'rgba(50, 50, 50, 0.8)'));
+
+      // Toggle dropdown on menu button click
+      menuBtn.mousePressed(() => {
+        let currentDisplay = dropdown.style('display');
+        dropdown.style('display', currentDisplay === 'none' ? 'block' : 'none');
+      });
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!menuBtn.elt.contains(e.target) && !dropdown.elt.contains(e.target)) {
+          dropdown.style('display', 'none');
         }
       });
-     
-      testBtn.size(80, 30);
 
       this.buttonsCreated = true;
     }
@@ -1811,30 +1954,123 @@ class Controls {
    * Display HUD elements in the header
    */
   displayHUD() {
-    // Set text properties for HUD
-    textAlign(LEFT, CENTER);
-    textSize(18 * gameScale);
-    fill(255);
+    // Check if mobile device
+    const isMobile = Joystick.isMobile();
+    
+    // Set text properties for HUD - smaller on PC, larger on mobile
+    const hudTextSize = isMobile ? 24 * gameScale : 14 * gameScale; // Reduced PC size from 18 to 14
+    textSize(hudTextSize);
+    
+    // Add text outline for better visibility on mobile
+    if (isMobile) {
+      strokeWeight(2);
+      stroke(0, 0, 0, 150);
+    } else {
+      noStroke();
+    }
 
-    // Score display
-    text(`Score: ${G.score}`, 250 * gameScale, 40 * gameScale);
+    let playerShip = G.ship.find(s => !s.isEnemy);
+    let lives = G.ship.filter(s => !s.isEnemy).length;
+    let damageValue = playerShip ? Math.floor(playerShip.damg) : 0;
+    let maxDamage = playerShip ? playerShip.maxDamage : 100;
+    let damagePercent = damageValue / maxDamage;
+    let currentHP = maxDamage - damageValue;
 
-    // Level display
-    text(`Level: ${G.level.length}`, 400 * gameScale, 40 * gameScale);
-
-    // Lives display with ship icon
-    text(`Lives: ${G.ship.length}`, 550 * gameScale, 40 * gameScale);
-    // Draw small ship icon next to lives
-    push();
-    translate(520 * gameScale, 40 * gameScale);
-    scale(0.6 * gameScale);
-    fill(this.myred, this.mygreen, this.myblue, 255);
-    triangle(-10, 10, 10, 10, 0, -15);
-    pop();
-
-    // Damage display
-    let damageValue = G.ship[0] ? G.ship[0].damg : 0;
-    text(`Damage: ${damageValue}`, 650 * gameScale, 40 * gameScale);
+    if (isMobile) {
+      // Mobile: Vertical stack in right half, left-aligned
+      textAlign(LEFT, CENTER);
+      const rightContainerStart = width / 2; // Start of right half
+      const hudX = rightContainerStart + 15 * gameScale; // Left-aligned in right half
+      const startY = 25 * gameScale;
+      const lineHeight = 30 * gameScale;
+      
+      stroke(0, 0, 0, 150);
+      strokeWeight(2);
+      
+      // Score
+      fill(255);
+      text(`Score: ${G.score}`, hudX, startY);
+      
+      // Level
+      text(`Level: ${G.level.length}`, hudX, startY + lineHeight);
+      
+      // Lives with ship icon
+      text(`Lives: ${lives}`, hudX, startY + lineHeight * 2);
+      push();
+      translate(hudX - 30 * gameScale, startY + lineHeight * 2);
+      scale(0.7 * gameScale);
+      fill(this.myred, this.mygreen, this.myblue, 255);
+      stroke(255);
+      strokeWeight(1);
+      triangle(-10, 10, 10, 10, 0, -15);
+      pop();
+      
+      // HP with color coding
+      if (damagePercent < 0.33) {
+        fill(0, 255, 0); // Green
+      } else if (damagePercent < 0.66) {
+        fill(255, 255, 0); // Yellow
+      } else {
+        fill(255, 0, 0); // Red
+      }
+      stroke(0, 0, 0, 150);
+      strokeWeight(2);
+      text(`HP: ${currentHP}/${maxDamage}`, hudX, startY + lineHeight * 3);
+      
+      // Shield indicator
+      if (playerShip && playerShip.shieldActive && playerShip.shieldHealth > 0) {
+        fill(0, 200, 255);
+        stroke(0, 0, 0, 150);
+        strokeWeight(2);
+        text(`🛡️${Math.floor(playerShip.shieldHealth)}%`, hudX, startY + lineHeight * 4);
+      }
+    } else {
+      // Desktop: Centered horizontal layout, compact
+      textAlign(CENTER, CENTER);
+      noStroke();
+      const yPos = 30 * gameScale;
+      const centerX = width / 2; // Center of screen
+      const spacing = 110 * gameScale; // Spacing between elements
+      
+      // Calculate total width to center properly
+      // Score, Level, Lives, HP, Shield (5 elements with 4 gaps)
+      const numElements = playerShip && playerShip.shieldActive && playerShip.shieldHealth > 0 ? 5 : 4;
+      const totalWidth = (numElements - 1) * spacing;
+      const startX = centerX - totalWidth / 2;
+      
+      // Score
+      fill(255);
+      text(`Score: ${G.score}`, startX, yPos);
+      
+      // Level
+      text(`Level: ${G.level.length}`, startX + spacing, yPos);
+      
+      // Lives with ship icon
+      text(`Lives: ${lives}`, startX + spacing * 2, yPos);
+      push();
+      translate(startX + spacing * 2 - 35 * gameScale, yPos);
+      scale(0.5 * gameScale);
+      fill(this.myred, this.mygreen, this.myblue, 255);
+      noStroke();
+      triangle(-10, 10, 10, 10, 0, -15);
+      pop();
+      
+      // HP with color coding
+      if (damagePercent < 0.33) {
+        fill(0, 255, 0);
+      } else if (damagePercent < 0.66) {
+        fill(255, 255, 0);
+      } else {
+        fill(255, 0, 0);
+      }
+      text(`HP: ${currentHP}/${maxDamage}`, startX + spacing * 3, yPos);
+      
+      // Shield indicator
+      if (playerShip && playerShip.shieldActive && playerShip.shieldHealth > 0) {
+        fill(0, 200, 255);
+        text(`🛡️${Math.floor(playerShip.shieldHealth)}%`, startX + spacing * 4, yPos);
+      }
+    }
   }
 
   /**
@@ -1887,7 +2123,12 @@ const c = new Controls();
 let gameScale = 1;
 
 // Game state management
-let gameState = 'start'; // 'start', 'playing', 'gameOver'
+let gameState = 'start'; // 'start', 'playing', 'paused', 'gameOver'
+let isPaused = false;
+
+// Parallax background offset
+let bgOffsetX = 0;
+let bgOffsetY = 0;
 
 
 
@@ -1921,6 +2162,49 @@ function setup() {
 }
 
 /**
+ * Draw parallax background that moves with ship
+ */
+function drawParallaxBackground() {
+  // Get player ship for parallax calculation
+  let playerShip = G.ship.find(s => !s.isEnemy);
+  
+  if (playerShip) {
+    // Update background offset based on ship velocity (parallax effect)
+    // Use a smaller multiplier for subtle parallax (0.1 = 10% of ship movement)
+    bgOffsetX -= playerShip.vel.x * 0.1;
+    bgOffsetY -= playerShip.vel.y * 0.1;
+    
+    // Wrap background offsets to create seamless tiling
+    // Assuming background image is tileable
+    if (G.bkg.width > 0) {
+      bgOffsetX = bgOffsetX % G.bkg.width;
+      bgOffsetY = bgOffsetY % G.bkg.height;
+    }
+  }
+  
+  // Draw background tiles to cover entire screen with parallax offset
+  push();
+  imageMode(CORNER);
+  
+  // Calculate how many tiles we need to cover the screen
+  let tilesX = Math.ceil(width / G.bkg.width) + 2;
+  let tilesY = Math.ceil(height / G.bkg.height) + 2;
+  
+  // Starting position (offset by parallax)
+  let startX = bgOffsetX - G.bkg.width;
+  let startY = bgOffsetY - G.bkg.height;
+  
+  // Draw tiled background
+  for (let x = 0; x < tilesX; x++) {
+    for (let y = 0; y < tilesY; y++) {
+      image(G.bkg, startX + x * G.bkg.width, startY + y * G.bkg.height);
+    }
+  }
+  
+  pop();
+}
+
+/**
  * p5.js draw function - main game loop called every frame
  */
 function draw() {
@@ -1929,7 +2213,29 @@ function draw() {
     return;
   }
 
-  background(G.bkg);
+  // Draw parallax background
+  drawParallaxBackground();
+  
+  // Draw HUD first (always visible)
+  c.displayHUD();
+  
+  // Handle pause state - STOP ALL GAME LOGIC
+  if (isPaused) {
+    // Draw pause overlay on top of frozen game
+    push();
+    fill(0, 0, 0, 150);
+    rect(0, 0, width, height);
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(48 * gameScale);
+    text('PAUSED', width / 2, height / 2 - 50 * gameScale);
+    textSize(24 * gameScale);
+    text('Press P or ESC to resume', width / 2, height / 2 + 20 * gameScale);
+    pop();
+    return; // EXIT EARLY - Don't run any game logic
+  }
+  
+  // Game logic only runs when NOT paused
   turning();
   moving();
   shipDamage(225);
@@ -1947,9 +2253,6 @@ function draw() {
   //   G.ship.push(enemyShip);
   //   console.log(`Force spawned enemy. Total ships: ${G.ship.length}`);
   // }
-
-  // Draw the transparent header with buttons and HUD (only once per frame)
-  c.displayHUD();
 
   // Update and render joysticks for mobile controls
   if (leftJoystick) leftJoystick.update();
@@ -2011,11 +2314,6 @@ function draw() {
   // Check laser collisions with ships
   checkLaserShipCollisions();
 
-  // Debug: Log laser and ship counts
-  // if (frameCount % 60 === 0) {
-  //   console.log(`Lasers: ${G.lasers ? G.lasers.length : 0}, Ships: ${G.ship ? G.ship.length : 0}`);
-  // }
-
   // Render particles for explosions
   drawParts();
 
@@ -2036,38 +2334,33 @@ function spawnEnemyShips() {
   let currentLevel = G.level.length;
   let enemyCount = G.ship.filter(s => s.isEnemy).length;
 
-  // For level 1, only spawn one enemy at a time and less frequently
-  if (currentLevel === 1) {
-    if (enemyCount > 0) return; // Don't spawn if there's already an enemy
-    let baseSpawnRate = 2400; // Frames between spawns (40 seconds at 60fps for level 1)
-    if (frameCount % baseSpawnRate === 0 && random() < 0.5) { // 50% chance when timer hits
-      console.log(`Spawning enemy ship at level ${currentLevel}, spawnRate: ${baseSpawnRate}`);
-      let enemyShip = new Ships(true, 0); // Create enemy ship
-      enemyShip.fireRate = 60;
-      enemyShip.accuracy = 0.1;
-      enemyShip.crossingSpeed = 1.5;
-      G.ship.push(enemyShip);
-      console.log(`Enemy ship spawned. Total ships: ${G.ship.length}`);
-    }
-  } else {
-    // For levels > 1, allow multiple enemies with increasing frequency
-    let baseSpawnRate = 1200; // Frames between spawns (20 seconds at 60fps)
-    let levelMultiplier = max(1, currentLevel * 0.8); // Increase frequency with level
-    let spawnRate = baseSpawnRate / levelMultiplier;
-    let maxEnemies = min(5, currentLevel); // Cap at 5 enemies max
+  // Level-based spawn configuration with increasing frequency
+  let spawnConfig = {
+    1: { rate: 1800, max: 1, chance: 0.6 },   // 30 seconds, 1 enemy, 60% chance
+    2: { rate: 1200, max: 2, chance: 0.7 },   // 20 seconds, 2 enemies, 70% chance
+    3: { rate: 900, max: 3, chance: 0.8 },    // 15 seconds, 3 enemies, 80% chance
+    4: { rate: 720, max: 4, chance: 0.85 },   // 12 seconds, 4 enemies, 85% chance
+    5: { rate: 600, max: 5, chance: 0.9 },    // 10 seconds, 5 enemies, 90% chance
+  };
 
-    if (enemyCount < maxEnemies && frameCount % spawnRate === 0 && random() < 0.3) { // 30% chance when timer hits
-      console.log(`Spawning enemy ship at level ${currentLevel}, spawnRate: ${spawnRate}`);
-      let enemyShip = new Ships(true, 0); // Create enemy ship
+  // For levels beyond 5, keep increasing difficulty
+  let config = spawnConfig[currentLevel] || {
+    rate: Math.max(300, 600 - (currentLevel - 5) * 50),  // Minimum 5 seconds
+    max: Math.min(8, 5 + Math.floor((currentLevel - 5) / 2)), // Max 8 enemies
+    chance: Math.min(0.95, 0.9 + (currentLevel - 5) * 0.01)  // Max 95% chance
+  };
 
-      // Adjust enemy properties based on level
-      enemyShip.fireRate = max(30, 60 - currentLevel * 5); // Faster firing with level
-      enemyShip.accuracy = min(0.8, 0.1 + currentLevel * 0.1); // More accurate with level
-      enemyShip.crossingSpeed = 1.5 + currentLevel * 0.2; // Faster movement with level
+  // Check if we should spawn
+  if (enemyCount < config.max && frameCount % config.rate === 0 && random() < config.chance) {
+    let enemyShip = new Ships(true, 0); // Create enemy ship
 
-      G.ship.push(enemyShip);
-      console.log(`Enemy ship spawned. Total ships: ${G.ship.length}`);
-    }
+    // Adjust enemy properties based on level - gets harder each level
+    enemyShip.fireRate = Math.max(20, 60 - currentLevel * 4); // Faster firing (min 20 frames = 3 shots/sec)
+    enemyShip.accuracy = Math.min(0.9, 0.1 + currentLevel * 0.08); // More accurate (max 90%)
+    enemyShip.crossingSpeed = 1.5 + currentLevel * 0.3; // Faster movement
+    enemyShip.maxDamage = 100 + currentLevel * 10; // Tougher enemies at higher levels
+
+    G.ship.push(enemyShip);
   }
 }
 
@@ -2080,28 +2373,19 @@ function drawParts() {
     P.show();
     P.update();
 
-    // Remove inactive particles from active array
+    // Return inactive particles to pool and remove from active array
     if (!P.active) {
+      // Return to particle pool if available
+      if (G.particlePool && G.particlePool.length < 1000) {
+        // Reset particle properties before returning to pool
+        P.alpha = 255;
+        P.lifespan = 300;
+        P.vel.set(0, 0);
+        P.acc.set(0, 0);
+        P.active = false;
+        G.particlePool.push(P);
+      }
       G.parts.splice(p, 1);
-    }
-  }
-}
-
-/**
- * Handle key release events for ship controls
- */
-function keyReleased() {
-  if (keyCode == 38) {
-    // Up arrow key - stop boosting when released (all levels)
-    let playerShip = G.ship.find(s => !s.isEnemy);
-    if (playerShip) {
-      playerShip.boosting(false);
-    }
-  } else if (keyCode == 70 || keyCode == 48) {
-    // F key or 0 key for shield
-    let playerShip = G.ship.find(s => !s.isEnemy);
-    if (playerShip) {
-      playerShip.shieldActive = false;
     }
   }
 }
@@ -2115,6 +2399,17 @@ function keyPressed() {
     return false;
   }
 
+  // Handle pause toggle (P key or ESC)
+  if (keyCode == 80 || keyCode == 27) { // P or ESC
+    isPaused = !isPaused;
+    return false;
+  }
+  
+  // Don't process other keys when paused
+  if (isPaused) {
+    return false;
+  }
+
   if (keyCode == 32) { // Spacebar for shooting
     // Find player ship
     let playerShip = G.ship.find(s => !s.isEnemy);
@@ -2125,15 +2420,15 @@ function keyPressed() {
       G.lasers.push(new Laser(laserPos, playerShip.heading));
       G.fire.play();
     }
-  } else if (keyCode == 38) { // Up arrow for acceleration
+  } else if (keyCode == 38 || keyCode == 87) { // Up arrow or W key for acceleration
     // Find player ship
     let playerShip = G.ship.find(s => !s.isEnemy);
     if (playerShip) {
       playerShip.boosting(true);
     }
-  } else if (keyCode == 70 || keyCode == 48) { // F key or 0 key for shield (only for level 2)
+  } else if (keyCode == 70 || keyCode == 48) { // F key or 0 key for shield (level 2+)
     let playerShip = G.ship.find(s => !s.isEnemy);
-    if (playerShip && G.level.length === 2) {
+    if (playerShip && G.level.length >= 2) {
       playerShip.shieldActive = true;
     }
   }
@@ -2144,7 +2439,14 @@ function keyPressed() {
  * Handle key release events for ship controls
  */
 function keyReleased() {
-  if (keyCode == 70 || keyCode == 48) { // F key or 0 key for shield
+  if (keyCode == 38 || keyCode == 87) {
+    // Up arrow or W key - stop boosting when released (all levels)
+    let playerShip = G.ship.find(s => !s.isEnemy);
+    if (playerShip) {
+      playerShip.boosting(false);
+    }
+  } else if (keyCode == 70 || keyCode == 48) {
+    // F key or 0 key for shield
     let playerShip = G.ship.find(s => !s.isEnemy);
     if (playerShip) {
       playerShip.shieldActive = false;
@@ -2171,20 +2473,10 @@ function checkLaserShipCollisions() {
         continue;
       }
 
-      // Debug: Log collision check (only for enemy lasers hitting player ship)
-      // if (laser.isEnemy && !ship.isEnemy) {
-      //   let d = dist(laser.pos.x, laser.pos.y, ship.pos.x, ship.pos.y);
-      //   let required = laser.r + ship.r;
-        // console.log(`Enemy laser vs Player: Distance: ${d.toFixed(1)} Required: ${required.toFixed(1)} Hit: ${d < required}`);
-      // }
-
       // Check if laser hits this ship
       if (laser.hits(ship)) {
-        console.log(`Laser hit! Laser isEnemy: ${laser.isEnemy}, Ship isEnemy: ${ship.isEnemy}, Damage: ${laser.r * 25}`);
-        console.log(`Ship before damage: ${ship.damg}/${ship.maxDamage}`);
-        // Apply damage to the ship
-        ship.damg += laser.r * 125; // Damage based on laser size
-        console.log(`Ship after damage: ${ship.damg}/${ship.maxDamage}`);
+        // Apply damage to the ship with shield absorption
+        ship.applyDamage(laser.r * 125); // Damage based on laser size
 
         // Activate particles from ship's pool
         ship.activateParticlesFromPool();
@@ -2255,17 +2547,22 @@ class Joystick {
     this.basePos = createVector(x, y); // Base position of joystick
     this.stickPos = createVector(x, y); // Current stick position
     this.radius = radius; // Maximum movement radius
-    this.isMovement = isMovement; // Whether this is a movement joystick
+    this.isMovement = isMovement; // Whether this is a movement joystick (true) or fire button (false)
     this.isActive = false; // Whether joystick is being touched
     this.touchId = null; // ID of the touch controlling this joystick
     this.vector = createVector(0, 0); // Movement vector (normalized -1 to 1)
     this.joystickImg = loadImage('IMG/joystick.png'); // Will hold the joystick image
-this.id = 'joystick_' + Math.random().toString(36).substr(2, 9); // Unique ID for this joystick
-// Global joystick instances
-// this.leftJoystick = null; // Fire button (left side)
-// this.rightJoystick = null; // Movement joystick (right side)
-
+    this.id = 'joystick_' + Math.random().toString(36).substr(2, 9); // Unique ID for this joystick
+    
+    // Fire rate limiting properties (for fire button only)
+    this.lastFireTime = 0; // Timestamp of last fire
+    this.fireRate = 200; // Milliseconds between shots (5 shots per second)
+    this.isFiring = false; // Whether fire button is currently being held
   }
+  
+
+  
+  
   static isMobile() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
            ('ontouchstart' in window) ||
@@ -2277,6 +2574,7 @@ isTouchInRadius(touch) {
     const dy = touch.y - this.basePos.y;
     return Math.sqrt(dx * dx + dy * dy) <= this.radius;
   }
+  
   isTrackingTouch(touch) {
     return this.touchId === touch.identifier;
   }
@@ -2284,14 +2582,15 @@ isTouchInRadius(touch) {
    * Handle touch start event
    */
   touchStarted(touch) {
-    // let d = dist(touch.x, touch.y, this.basePos.x, this.basePos.y);
-    if (this.isTouchInRadius(touch) ) {
-      if (!this.isActive) {
-        this.isActive = true;
-        this.touchId = touch.identifier;
+    if (this.isTouchInRadius(touch)) {
+      this.isActive = true;
+      this.touchId = touch.identifier;
+      
+      // Only update stick position for movement joystick
+      if (this.isMovement) {
+        this.updateStickPosition(touch);
       }
-
-      this.updateStickPosition(touch);
+      
       return true; // Touch captured
     }
     return false; // Touch not for this joystick
@@ -2302,9 +2601,10 @@ isTouchInRadius(touch) {
    */
   touchMoved(touch) {
     if (this.isTrackingTouch(touch)) {
-      console.log(`Touch moved for joystick ${this.id}`);
-      this.updateStickPosition(touch);
-      //  this.isActive = true;
+      // Only movement joystick can move, fire button stays stationary
+      if (this.isMovement) {
+        this.updateStickPosition(touch);
+      }
       return true;
     }
     return false;
@@ -2314,12 +2614,18 @@ isTouchInRadius(touch) {
    * Handle touch end event
    */
   touchEnded(touch) {
-    if (this.isTrackingTouch(touch)) {
+    // Only process if this touch belongs to this joystick
+    if (this.touchId === touch.identifier) {
       this.isActive = false;
       this.touchId = null;
-      // Immediately reset to center position
-      this.stickPos = this.basePos.copy();
-      this.vector.set(0, 0);
+      this.isFiring = false;
+      
+      // Only reset position for movement joystick
+      if (this.isMovement) {
+        this.stickPos = this.basePos.copy();
+        this.vector.set(0, 0);
+      }
+      
       return true;
     }
     return false;
@@ -2373,7 +2679,6 @@ isTouchInRadius(touch) {
    * Render the joystick
    */
   render() {
-
     if (!Joystick.isMobile()) return; // Only show on mobile
 
     push();
@@ -2384,17 +2689,34 @@ isTouchInRadius(touch) {
     strokeWeight(2);
     ellipse(this.basePos.x, this.basePos.y, this.radius * 2);
 
-    // Draw stick
-    if (this.joystickImg) {
-      // Use image for stick
-      imageMode(CENTER);
-      image(this.joystickImg, this.stickPos.x, this.stickPos.y, this.radius * 0.8, this.radius * 0.8);
+    // For fire button, draw centered icon. For movement joystick, draw moveable stick
+    if (this.isMovement) {
+      // Movement joystick - draw moveable stick
+      if (this.joystickImg) {
+        imageMode(CENTER);
+        image(this.joystickImg, this.stickPos.x, this.stickPos.y, this.radius * 0.8, this.radius * 0.8);
+      } else {
+        fill(255, 255, 255, 200);
+        stroke(255);
+        strokeWeight(1);
+        ellipse(this.stickPos.x, this.stickPos.y, this.radius * 0.6);
+      }
     } else {
-      // Fallback: draw circle for stick
-      fill(255, 255, 255, 200);
-      stroke(255);
-      strokeWeight(1);
-      ellipse(this.stickPos.x, this.stickPos.y, this.radius * 0.6);
+      // Fire button - draw stationary icon at center with visual feedback when pressed
+      let buttonAlpha = this.isActive ? 255 : 200;
+      let buttonSize = this.isActive ? this.radius * 0.9 : this.radius * 0.8;
+      
+      if (this.joystickImg) {
+        imageMode(CENTER);
+        tint(255, buttonAlpha);
+        image(this.joystickImg, this.basePos.x, this.basePos.y, buttonSize, buttonSize);
+        noTint();
+      } else {
+        fill(255, 100, 100, buttonAlpha); // Red color for fire button
+        stroke(255);
+        strokeWeight(2);
+        ellipse(this.basePos.x, this.basePos.y, buttonSize);
+      }
     }
 
     pop();
@@ -2406,9 +2728,32 @@ isTouchInRadius(touch) {
   getVector() {
     return this.vector.copy();
   }
-  fireLaser() {
-  
+  /**
+   * Check if joystick can fire (with rate limiting)
+   * @returns {boolean} True if enough time has passed since last fire
+   */
+  isFiring() {
+    if (!this.isActive) return false;
+    
+    const now = Date.now();
+    if (now - this.lastFireTime >= this.fireRate) {
+      this.lastFireTime = now;
+      return true;
+    }
+    return false;
+  }
 
+  /**
+   * Fire a laser from the player ship with rate limiting
+   * Called when fire button is tapped
+   */
+  fireLaser() {
+    // Check rate limiting
+    const now = Date.now();
+    if (now - this.lastFireTime < this.fireRate) {
+      return false; // Too soon since last fire
+    }
+    
     let playerShip = G.ship.find(s => !s.isEnemy);
     if (playerShip) {
       let laserPos = p5.Vector.fromAngle(playerShip.heading);
@@ -2416,9 +2761,12 @@ isTouchInRadius(touch) {
       laserPos.add(playerShip.pos);
       G.lasers.push(new Laser(laserPos, playerShip.heading));
       if (G.fire) G.fire.play();
-      console.log('Laser fired from joystick fire button');
+      this.lastFireTime = now;
+      return true;
+    }
+    
+    return false;
   }
-}
 }
 
 // Global joystick instances
@@ -2450,34 +2798,27 @@ function handleJoystickTouches(touches, eventType) {
   for (let touch of touches) {
     if (eventType === 'start') {
       // Check if touch is within each joystick's radius
-      if (leftJoystick.isTouchInRadius(touch)) {
+      // Use else-if to prevent one touch from activating both joysticks
+      if (leftJoystick.isTouchInRadius(touch) && !leftJoystick.isActive) {
         leftJoystick.touchStarted(touch);
-        leftJoystick.fireLaser()
-       
-      }
-      if (rightJoystick.isTouchInRadius(touch)) {
+        // Fire immediately on touch
+        leftJoystick.fireLaser();
+      } else if (rightJoystick.isTouchInRadius(touch) && !rightJoystick.isActive) {
         rightJoystick.touchStarted(touch);
-        
       }
     } else if (eventType === 'move') {
-      // Only update joysticks that are active and tracking this touch
-      if (leftJoystick.isActive && leftJoystick.isTrackingTouch(touch)) {
-        rightJoystick.isActive = false;
-      }
-      if (rightJoystick.isActive && rightJoystick.isTrackingTouch(touch)) {
+      // Only update the joystick that is tracking this specific touch
+      if (leftJoystick.isTrackingTouch(touch)) {
+        leftJoystick.touchMoved(touch);
+      } else if (rightJoystick.isTrackingTouch(touch)) {
         rightJoystick.touchMoved(touch);
       }
     } else if (eventType === 'end') {
       // Only deactivate if the ending touch matches the tracked touch
       if (leftJoystick.isTrackingTouch(touch)) {
         leftJoystick.touchEnded(touch);
-        leftJoystick.isActive = false;
-        
-      }
-      if (rightJoystick.isTrackingTouch(touch)) {
+      } else if (rightJoystick.isTrackingTouch(touch)) {
         rightJoystick.touchEnded(touch);
-        rightJoystick.isActive = false;
-       
       }
     }
   }
@@ -2511,7 +2852,31 @@ function touchMoved() {
 }
 
 function touchEnded() {
-  handleJoystickTouches(touches, 'end');
+  // When a touch ends, we need to check ALL joysticks to see which one was tracking it
+  // The 'touches' array only contains remaining touches, not the one that ended
+  if (!Joystick.isMobile() || !leftJoystick || !rightJoystick) return false;
+  
+  // Check each joystick to see if it should deactivate
+  // We can't rely on the touches array here since the ended touch is not in it
+  // Instead, check if the joystick's tracked touch is still in the touches array
+  let leftTouchStillActive = touches.some(t => t.identifier === leftJoystick.touchId);
+  let rightTouchStillActive = touches.some(t => t.identifier === rightJoystick.touchId);
+  
+  // If the joystick's touch is not in the remaining touches, it ended
+  if (leftJoystick.isActive && !leftTouchStillActive) {
+    leftJoystick.isActive = false;
+    leftJoystick.touchId = null;
+    leftJoystick.isFiring = false;
+  }
+  
+  if (rightJoystick.isActive && !rightTouchStillActive) {
+    rightJoystick.isActive = false;
+    rightJoystick.touchId = null;
+    rightJoystick.isFiring = false;
+    rightJoystick.stickPos = rightJoystick.basePos.copy();
+    rightJoystick.vector.set(0, 0);
+  }
+  
   return false;
 }
 
