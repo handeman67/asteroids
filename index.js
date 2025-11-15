@@ -3,7 +3,7 @@
  * Ships, asteroids, lasers, and particles inherit from this class
  */
 class GameObject {
-  constructor(x = 0, y = 0, radius = 10) {
+  constructor(x = 0, y = 0, radius = 20) {
     // Core physical properties
     this.pos = createVector(x, y);
     this.vel = createVector(0, 0);
@@ -2687,7 +2687,7 @@ isTouchInRadius(touch) {
     fill(255, 255, 255, 100);
     stroke(255, 255, 255, 150);
     strokeWeight(2);
-    ellipse(this.basePos.x, this.basePos.y, this.radius * 2);
+    ellipse(this.basePos.x, this.basePos.y, this.radius * 4);
 
     // For fire button, draw centered icon. For movement joystick, draw moveable stick
     if (this.isMovement) {
@@ -2704,7 +2704,7 @@ isTouchInRadius(touch) {
     } else {
       // Fire button - draw stationary icon at center with visual feedback when pressed
       let buttonAlpha = this.isActive ? 255 : 200;
-      let buttonSize = this.isActive ? this.radius * 0.9 : this.radius * 0.8;
+      let buttonSize = this.isActive ? this.radius * 1.5 : this.radius * 0.8;
       
       if (this.joystickImg) {
         imageMode(CENTER);
@@ -2797,27 +2797,28 @@ function handleJoystickTouches(touches, eventType) {
 
   for (let touch of touches) {
     if (eventType === 'start') {
-      // Check if touch is within each joystick's radius
-      // Use else-if to prevent one touch from activating both joysticks
-      if (leftJoystick.isTouchInRadius(touch) && !leftJoystick.isActive) {
+      // Check BOTH joysticks independently - remove else-if to allow both to activate
+      if (leftJoystick.isTouchInRadius(touch) && !leftJoystick.isTrackingTouch(touch)) {
         leftJoystick.touchStarted(touch);
-        // Fire immediately on touch
         leftJoystick.fireLaser();
-      } else if (rightJoystick.isTouchInRadius(touch) && !rightJoystick.isActive) {
+      }
+      if (rightJoystick.isTouchInRadius(touch) && !rightJoystick.isTrackingTouch(touch)) {
         rightJoystick.touchStarted(touch);
       }
     } else if (eventType === 'move') {
-      // Only update the joystick that is tracking this specific touch
+      // Check BOTH joysticks independently
       if (leftJoystick.isTrackingTouch(touch)) {
         leftJoystick.touchMoved(touch);
-      } else if (rightJoystick.isTrackingTouch(touch)) {
+      }
+      if (rightJoystick.isTrackingTouch(touch)) {
         rightJoystick.touchMoved(touch);
       }
     } else if (eventType === 'end') {
-      // Only deactivate if the ending touch matches the tracked touch
+      // Check BOTH joysticks independently
       if (leftJoystick.isTrackingTouch(touch)) {
         leftJoystick.touchEnded(touch);
-      } else if (rightJoystick.isTrackingTouch(touch)) {
+      }
+      if (rightJoystick.isTrackingTouch(touch)) {
         rightJoystick.touchEnded(touch);
       }
     }

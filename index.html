@@ -65,8 +65,121 @@
     <script src="./index.js"></script>
 
     <script>
+        // Cache version - increment this when you update the game
+        const CACHE_VERSION = 'v1.0.2';
+        
+        // Check if cache needs refresh on mobile
+        function checkCacheVersion() {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            // TEMPORARY: Force show on all devices for testing
+            const lastVersion = localStorage.getItem('gameVersion');
+            
+            if (lastVersion !== CACHE_VERSION) {
+                // Show cache refresh notification
+                showCacheRefreshNotification();
+            }
+        }
+        
+        // Show notification with option to clear cache
+        function showCacheRefreshNotification() {
+            const notification = document.createElement('div');
+            notification.id = 'cache-notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.95);
+                color: white;
+                padding: 30px;
+                border-radius: 15px;
+                border: 2px solid #007bff;
+                z-index: 10000;
+                text-align: center;
+                max-width: 90%;
+                box-shadow: 0 0 20px rgba(0, 123, 255, 0.5);
+            `;
+            
+            // Create buttons with direct onclick handlers
+            const clearBtn = document.createElement('button');
+            clearBtn.textContent = 'Clear Cache & Reload';
+            clearBtn.style.cssText = `
+                background: #007bff;
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 16px;
+                cursor: pointer;
+                margin-right: 10px;
+            `;
+            const clearHandler = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Clear cache clicked');
+                localStorage.setItem('gameVersion', CACHE_VERSION);
+                notification.remove();
+                
+                if ('caches' in window) {
+                    caches.keys().then(function(names) {
+                        for (let name of names) caches.delete(name);
+                    });
+                }
+                
+                setTimeout(function() {
+                    location.reload(true);
+                }, 100);
+            };
+            clearBtn.onclick = clearHandler;
+            clearBtn.ontouchend = clearHandler;
+            
+            const skipBtn = document.createElement('button');
+            skipBtn.textContent = 'Skip';
+            skipBtn.style.cssText = `
+                background: #6c757d;
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 8px;
+                font-size: 16px;
+                cursor: pointer;
+            `;
+            const skipHandler = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Skip clicked');
+                localStorage.setItem('gameVersion', CACHE_VERSION);
+                notification.remove();
+            };
+            skipBtn.onclick = skipHandler;
+            skipBtn.ontouchend = skipHandler;
+            
+            // Build notification content
+            const title = document.createElement('h2');
+            title.textContent = '🎮 Game Updated!';
+            title.style.cssText = 'margin: 0 0 15px 0; color: #007bff;';
+            
+            const message = document.createElement('p');
+            message.innerHTML = 'A new version is available.<br>Clear cache for best experience.';
+            message.style.cssText = 'margin: 0 0 20px 0; font-size: 16px;';
+            
+            const buttonContainer = document.createElement('div');
+            buttonContainer.appendChild(clearBtn);
+            buttonContainer.appendChild(skipBtn);
+            
+            notification.appendChild(title);
+            notification.appendChild(message);
+            notification.appendChild(buttonContainer);
+            
+            document.body.appendChild(notification);
+        }
+        
         // Add event listeners when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
+            // Check cache version on mobile
+            checkCacheVersion();
+            
             // Add hover effect to start button
             const startButton = document.getElementById('start-button');
             if (startButton) {
